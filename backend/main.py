@@ -1,31 +1,36 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BlipProcessor, BlipForConditionalGeneration
 import torch
+from PIL import Image
+import io
 
 # --- AI Model Loading ---
-# We are upgrading to a much more powerful and creative model.
-# Note: This model is larger and will require a more significant download the first time.
-model_name = "microsoft/phi-2"
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, 
-    torch_dtype="auto", 
-    trust_remote_code=True
+# This happens once when the server starts up.
+
+# Model 1: Vision Model for Image Captioning
+vision_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+vision_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large")
+
+# Model 2: Language Model - UPGRADED to a more reliable instruction-tuned model
+lang_model_name = "google/gemma-2b-it"
+lang_tokenizer = AutoTokenizer.from_pretrained(lang_model_name)
+lang_model = AutoModelForCausalLM.from_pretrained(
+    lang_model_name,
+    torch_dtype=torch.bfloat16 # Recommended for Gemma models
 )
 # --- End AI Model Loading ---
 
-# Define the data model for the request body
 class GenerateRequest(BaseModel):
     attributes: str
-    keywords: str | None = None # Keywords are optional
+    keywords: str | None = None
 
 app = FastAPI()
 
 origins = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173", # Corrected the IP address
+    "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(
@@ -40,30 +45,70 @@ app.add_middleware(
 def read_root():
     return {"message": "Welcome to the Product Description Generator API!"}
 
-# Updated endpoint that now uses the AI model
 @app.post("/generate-description/")
 def generate_description(request: GenerateRequest):
-    # --- PROMPT ENGINEERING for Phi-2 ---
-    # This model uses a specific "Instruct/Output" format.
-    prompt = f"""Instruct: Create a compelling e-commerce product description.
-- Product Attributes: {request.attributes}
-- SEO Keywords to include: {request.keywords if request.keywords else 'None'}
-Output:
-"""
-
-    print("---")
-    print(f"DEBUG: Prompt sent to model:\n{prompt}")
-    print("---")
-
-    # Generate the description using the new model
-    # Note: We now pass the attention_mask and have removed the unused early_stopping flag.
-    inputs = tokenizer(prompt, return_tensors="pt") # No longer need return_attention_mask=False
-    outputs = model.generate(**inputs, max_length=128, no_repeat_ngram_size=2) # Removed early_stopping
-    generated_text = tokenizer.batch_decode(outputs)[0]
-
-    # Clean the output to only get the generated description
-    # The model will output our prompt as well, so we need to remove it.
-    cleaned_text = generated_text.split("Output:")[1].strip()
+    # Gemma uses a specific chat template format with a more forceful prompt
+    input_text = (
+        f"You are an expert e-commerce copywriter. Your task is to write a compelling product description in a single paragraph.\n"
+        f"The description should be between 80 and 120 words.\n"
+        f"Do not use any Markdown formatting (no hashtags, asterisks, etc.).\n"
+        f"Do not invent brand names.\n\n"
+        f"--- DETAILS ---\n"
+        f"Product Attributes: {request.attributes}\n"
+        f"IMPORTANT: You MUST naturally include the following keywords in the description: {request.keywords if request.keywords else 'None'}"
+    )
+    chat = [{"role": "user", "content": input_text}]
+    prompt = lang_tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
     
+    print(f"DEBUG (Text): Prompt sent to model:\n{prompt}")
+    inputs = lang_tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt")
+    # Use max_new_tokens to ensure a complete description
+    outputs = lang_model.generate(input_ids=inputs, max_new_tokens=200)
+    generated_text = lang_tokenizer.decode(outputs[0])
+    
+    # Clean Gemma's output
+    cleaned_text = generated_text.split("<start_of_turn>model\n")[-1].strip()
+    cleaned_text = cleaned_text.replace("<eos>", "").strip()
+    return {"description": cleaned_text}
+
+@app.post("/generate-from-image/")
+async def generate_from_image(
+    keywords: str = Form(""), 
+    image: UploadFile = File(...)
+):
+    # Step 1: Get base caption from vision model
+    image_data = await image.read()
+    pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
+    
+    vision_inputs = vision_processor(pil_image, return_tensors="pt")
+    vision_outputs = vision_model.generate(**vision_inputs, max_length=50)
+    base_caption = vision_processor.decode(vision_outputs[0], skip_special_tokens=True)
+    print(f"DEBUG (Image): Base caption from vision model: {base_caption}")
+
+    # Step 2: Use the caption as input for our powerful language model with a better prompt.
+    input_text = (
+        f"You are an expert e-commerce copywriter. Your task is to write a compelling product description in a single paragraph.\n"
+        f"The description should be between 80 and 120 words.\n"
+        f"Do not use any Markdown formatting (no hashtags, asterisks, etc.).\n"
+        f"Do not invent brand names.\n\n"
+        f"--- DETAILS ---\n"
+        f"Visual Analysis: A product described as '{base_caption}'.\n"
+        f"IMPORTANT: You MUST naturally include the following keywords in the description: {keywords if keywords else 'None'}"
+    )
+    chat = [{"role": "user", "content": input_text}]
+    prompt = lang_tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
+
+    print(f"DEBUG (Image): Prompt sent to language model:\n{prompt}")
+    
+    inputs = lang_tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt")
+    # Use max_new_tokens to ensure a complete description
+    outputs = lang_model.generate(input_ids=inputs, max_new_tokens=200)
+    generated_text = lang_tokenizer.decode(outputs[0])
+
+    # --- Final, Simplified Output Cleaning for Gemma ---
+    # Gemma's structured output makes cleaning much easier and more reliable.
+    cleaned_text = generated_text.split("<start_of_turn>model\n")[-1].strip()
+    cleaned_text = cleaned_text.replace("<eos>", "").strip()
+
     return {"description": cleaned_text}
 
