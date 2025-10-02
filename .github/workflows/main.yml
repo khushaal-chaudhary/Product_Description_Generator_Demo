@@ -50,7 +50,7 @@ jobs:
       
       # New step to help debug the exact tag being used
       - name: Debug Image Tag
-        run: echo "Attempting to push to: registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest" | tr '[:upper:]' '[:lower:]'
+        run: "echo \"Attempting to push to: registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest\" | tr '[:upper:]' '[:lower:]'"
 
       # Step 8: Build and Push the Docker image to Hugging Face
       - name: Build and Push Docker image
