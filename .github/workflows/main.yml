@@ -67,7 +67,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ steps.docker_build.outputs.tags }}' # Use the tag from the build step
+          image-ref: ${{ steps.docker_build.outputs.tags }} # Corrected syntax by removing quotes
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
