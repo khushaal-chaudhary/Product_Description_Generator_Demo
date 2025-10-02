@@ -33,11 +33,13 @@ jobs:
         uses: iterative/setup-dvc@v1
 
       # Step 4: Configure DVC with Google Drive credentials from a secret
-      # This step is crucial for the runner to access your models
+      # This step now creates the remote from scratch using secrets
       - name: Configure DVC with Google Drive Credentials
         env:
           GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
+          DVC_GDRIVE_URL: ${{ secrets.DVC_GDRIVE_URL }}
         run: |
+          dvc remote add -d gdrive "$DVC_GDRIVE_URL"
           dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
           echo "$GDRIVE_CREDENTIALS_DATA" > gdrive-creds.json
 
@@ -69,3 +71,4 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
