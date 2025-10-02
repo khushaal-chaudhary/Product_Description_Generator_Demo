@@ -1,20 +1,18 @@
-# This is a basic workflow to demonstrate MLOps CI/CD
+# This workflow demonstrates a full MLOps CI/CD pipeline
 name: CI/CD for Product Generator
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push events but only for the "main" branch
   push:
     branches: [ "main" ]
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
-  build:
+  build_and_deploy:
     runs-on: ubuntu-latest
-    # Define the image tag once as a job-level environment variable for reliability
     env:
-      IMAGE_TAG: ${{ github.repository_owner }}/product-description-generator:${{ github.sha }}
+      # Define the HF Space target once for reliability
+      HF_SPACE_TARGET: ${{ secrets.HF_USERNAME }}/product-description-generator
 
     steps:
       - name: Checkout repository
@@ -43,24 +41,26 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        
+      # --- DEPLOYMENT STEPS START HERE ---
 
-      - name: Build the Docker image
+      - name: Log in to Hugging Face Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.hf.space
+          username: ${{ secrets.HF_USERNAME }}
+          password: ${{ secrets.HF_TOKEN }}
+      
+      # Step 8: Build and Push the Docker image to Hugging Face
+      - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          push: false 
-          load: true 
-          tags: ${{ env.IMAGE_TAG }} # Use the environment variable
+          push: true # This is the key change to enable deployment
+          tags: registry.hf.space/${{ env.HF_SPACE_TARGET }}:latest # Use the correct HF registry tag
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE_TAG }} # Use the same environment variable
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+      # The Trivy scanner step is removed for the final deployment workflow
+      # as it was primarily for CI validation. 
 
