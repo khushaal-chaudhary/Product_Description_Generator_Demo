@@ -39,22 +39,25 @@ jobs:
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
         run: |
           # Configure git for the action
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
           
           # Clone the Hugging Face Space repository into a new directory
-          # The HF_SPACE_ID secret should be in the format: YourUsername/YourSpaceName
-          git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${{ secrets.HF_SPACE_ID }} hf-space
+          git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space
           
           # Navigate into the Space repo and enable Git LFS
           cd hf-space
           git lfs install
           
-          # Copy the backend code and DVC-tracked models into the Space repo
-          # Using rsync is more robust and handles large directories better
-          rsync -av --delete ../backend/ ./
+          # Copy only the essential files to the root of the Space repo
+          cp ../backend/main.py .
+          cp ../backend/requirements.txt .
+          cp ../backend/Dockerfile .
+          cp ../backend/.dockerignore .
+          cp -r ../backend/models .
           
           # Tell Git LFS to track the large model files
           git lfs track "models/**"
