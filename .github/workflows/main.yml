@@ -32,8 +32,7 @@ jobs:
       - name: Set up DVC
         uses: iterative/setup-dvc@v1
 
-      # Step 4: Configure DVC with Google Drive Credentials (Final Method)
-      # This step explicitly tells DVC to use the service account credentials file.
+      # Step 4: Configure DVC with Google Drive Credentials
       - name: Configure DVC with Google Drive Credentials
         env:
           GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
@@ -53,20 +52,22 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # Step 7: Build the Docker image
-      # This step builds the image using our Dockerfile and caches the result.
-      # A successful build confirms that all code, dependencies, and models are working together.
       - name: Build Docker image
+        id: docker_build # Add an ID to this step to reference its outputs
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          push: false # We are only building, not pushing to a registry yet
+          push: false 
+          load: true # Load the image into the Docker daemon
+          tags: ${{ github.repository }}:${{ github.sha }} # Tag the image with repo name and commit SHA
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Step 8: Run Trivy vulnerability scanner
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'your-image-name'
+          image-ref: '${{ steps.docker_build.outputs.tags }}' # Use the tag from the build step
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
