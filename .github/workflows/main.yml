@@ -1,4 +1,4 @@
-# This workflow demonstrates a full MLOps CI/CD pipeline
+# This workflow demonstrates a full MLOps CI/CD pipeline using Git-based deployment
 name: CI/CD for Product Generator
 
 # Controls when the workflow will run
@@ -36,25 +36,44 @@ jobs:
       - name: Pull DVC data
         run: dvc pull
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      # --- DEPLOYMENT STEPS START HERE ---
+      # --- DEPLOYMENT STEP USING GIT PUSH ---
+      - name: Deploy to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Configure git for the action
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          
+          # Clone the Hugging Face Space repository into a new directory
+          git clone https://huggingface.co/spaces/Khushaal/product-description-generator hf-space
+          
+          # Copy the backend code and DVC-tracked models into the Space repo
+          cp -r backend/* hf-space/
+          
+          # Navigate into the Space repo
+          cd hf-space
+          
+          # Ensure the README has the correct metadata for a Docker Space
+          cat > README.md << 'EOF'
+---
+title: Product Description Generator
+emoji: ✨
+colorFrom: purple
+colorTo: pink
+sdk: docker
+app_port: 8000
+pinned: false
+---
+EOF
+          
+          # Add all files to be committed
+          git add .
+          
+          # Commit the changes if there are any
+          git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
+          
+          # Push the changes to the Hugging Face Space
+          # The HF_TOKEN is used for authentication
+          git push https://user:${HF_TOKEN}@huggingface.co/spaces/Khushaal/product-description-generator main
 
-      - name: Log in to Hugging Face Docker Registry
-        uses: docker/login-action@v3
-        with:
-          registry: registry.hf.space
-          username: ${{ secrets.HF_USERNAME }}
-          password: ${{ secrets.HF_TOKEN }}
-      
-      # Step 8: Build and Push the Docker image to Hugging Face
-      - name: Build and Push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: true 
-          # Use the final, correct, hardcoded tag
-          tags: registry.hf.space/khushaal/product-description-generator:latest 
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
