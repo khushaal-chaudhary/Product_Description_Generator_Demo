@@ -48,6 +48,6 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: registry.hf.space/khushaal-product-description-generator:latest
+          tags: registry.hf.space/khushaal/product-description-generator:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
