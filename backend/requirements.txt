@@ -85,7 +85,6 @@ pyparsing==3.2.5
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 python-multipart==0.0.20
-pywin32==311
 PyYAML==6.0.3
 regex==2025.9.18
 requests==2.32.5
