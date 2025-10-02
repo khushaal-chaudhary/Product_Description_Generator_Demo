@@ -10,9 +10,7 @@ on:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
-    env:
-      # Define the HF Space target once for reliability
-      HF_SPACE_TARGET: ${{ secrets.HF_USERNAME }}/product-description-generator
+    # The env block is removed from here as it will be set dynamically
 
     steps:
       - name: Checkout repository
@@ -44,6 +42,11 @@ jobs:
         
       # --- DEPLOYMENT STEPS START HERE ---
 
+      # This new step converts the HF username to lowercase for the Docker tag
+      - name: Set lowercase environment variables
+        run: |
+          echo "HF_USERNAME_LOWER=$(echo ${{ secrets.HF_USERNAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Log in to Hugging Face Docker Registry
         uses: docker/login-action@v3
         with:
@@ -57,10 +60,8 @@ jobs:
         with:
           context: ./backend
           push: true # This is the key change to enable deployment
-          tags: registry.hf.space/${{ env.HF_SPACE_TARGET }}:latest # Use the correct HF registry tag
+          # This now uses the lowercase username variable
+          tags: registry.hf.space/${{ env.HF_USERNAME_LOWER }}/product-description-generator:latest 
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # The Trivy scanner step is removed for the final deployment workflow
-      # as it was primarily for CI validation. 
 
