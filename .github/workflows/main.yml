@@ -9,30 +9,25 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    # Define the image tag once as a job-level environment variable for reliability
+    env:
+      IMAGE_TAG: ${{ github.repository_owner }}/product-description-generator:${{ github.sha }}
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Step 1: Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Python for DVC
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # Step 3: Set up DVC
       - name: Set up DVC
         uses: iterative/setup-dvc@v1
 
-      # Step 4: Configure DVC with Google Drive Credentials
       - name: Configure DVC with Google Drive Credentials
         env:
           GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
@@ -43,33 +38,29 @@ jobs:
           dvc remote modify gdrive gdrive_use_service_account true
           dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
 
-      # Step 5: Pull the models from DVC remote storage
       - name: Pull DVC data
         run: dvc pull
 
-      # Step 6: Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Step 7: Build the Docker image
-      - name: Build Docker image
-        id: docker_build # Add an ID to this step to reference its outputs
+      - name: Build the Docker image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: false 
-          load: true # Load the image into the Docker daemon
-          tags: ${{ github.repository_owner }}/product-description-generator:${{ github.sha }} # Use a valid, lowercase tag
+          load: true 
+          tags: ${{ env.IMAGE_TAG }} # Use the environment variable
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Step 8: Run Trivy vulnerability scanner
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ steps.docker_build.outputs.tags }} # Corrected syntax by removing quotes
+          image-ref: ${{ env.IMAGE_TAG }} # Use the same environment variable
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
