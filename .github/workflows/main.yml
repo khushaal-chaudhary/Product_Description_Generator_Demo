@@ -32,19 +32,22 @@ jobs:
       - name: Set up DVC
         uses: iterative/setup-dvc@v1
 
-      # Step 4: Configure DVC with Google Drive credentials from a secret
-      # This step now creates the remote from scratch using secrets
+      # Step 4: Configure DVC with Google Drive Credentials (Robust Method)
+      # This step now creates the credentials file and sets a standard environment variable
       - name: Configure DVC with Google Drive Credentials
         env:
           GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
           DVC_GDRIVE_URL: ${{ secrets.DVC_GDRIVE_URL }}
         run: |
           dvc remote add -d gdrive "$DVC_GDRIVE_URL"
-          dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
           echo "$GDRIVE_CREDENTIALS_DATA" > gdrive-creds.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/gdrive-creds.json" >> $GITHUB_ENV
 
       # Step 5: Pull the models from DVC remote storage
+      # This step will now use the GOOGLE_APPLICATION_CREDENTIALS environment variable to authenticate
       - name: Pull DVC data
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: dvc pull -r gdrive
 
       # Step 6: Set up Docker Buildx
