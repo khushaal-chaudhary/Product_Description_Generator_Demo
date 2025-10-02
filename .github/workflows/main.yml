@@ -1,5 +1,7 @@
+# This workflow demonstrates a full MLOps CI/CD pipeline
 name: CI/CD for Product Generator
 
+# Controls when the workflow will run
 on:
   push:
     branches: [ "main" ]
@@ -8,18 +10,19 @@ on:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Set up DVC
         uses: iterative/setup-dvc@v1
-      
+
       - name: Configure DVC with Google Drive Credentials
         env:
           GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
@@ -29,22 +32,15 @@ jobs:
           echo "$GDRIVE_CREDENTIALS_DATA" > gdrive-creds.json
           dvc remote modify gdrive gdrive_use_service_account true
           dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
-      
+
       - name: Pull DVC data
         run: dvc pull
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      # Test authentication first
-      - name: Test Hugging Face Authentication
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          echo "Testing HF authentication..."
-          curl -H "Authorization: Bearer $HF_TOKEN" \
-            https://huggingface.co/api/spaces/Khushaal/product-description-generator || true
-      
+        
+      # --- DEPLOYMENT STEPS START HERE ---
+
       - name: Log in to Hugging Face Docker Registry
         uses: docker/login-action@v3
         with:
@@ -52,11 +48,13 @@ jobs:
           username: ${{ secrets.HF_USERNAME }}
           password: ${{ secrets.HF_TOKEN }}
       
+      # Step 8: Build and Push the Docker image to Hugging Face
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          push: true
-          tags: registry.hf.space/khushaal-product-description-generator:latest
+          push: true 
+          # Use the final, correct, hardcoded tag
+          tags: registry.hf.space/khushaal/product-description-generator:latest 
           cache-from: type=gha
           cache-to: type=gha,mode=max
