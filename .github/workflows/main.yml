@@ -1,7 +1,6 @@
-# This workflow demonstrates a full MLOps CI/CD pipeline using Git-based deployment
+# This workflow uses a robust Git LFS deployment method for HF Spaces
 name: CI/CD for Product Generator
 
-# Controls when the workflow will run
 on:
   push:
     branches: [ "main" ]
@@ -14,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          lfs: true # Enable Git LFS for this step
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,7 +37,7 @@ jobs:
       - name: Pull DVC data
         run: dvc pull
 
-      # --- DEPLOYMENT STEP USING GIT PUSH ---
+      # --- DEPLOYMENT STEP USING GIT LFS ---
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -45,16 +46,16 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
           
-          # Clone the Hugging Face Space repository into a new directory
-          git clone https://huggingface.co/spaces/Khushaal/product-description-generator hf-space
+          # Clone the Hugging Face Space and configure LFS
+          git clone https://user:${HF_TOKEN}@huggingface.co/spaces/Khushaal/product-description-generator hf-space
+          cd hf-space
+          git lfs install
           
           # Copy the backend code and DVC-tracked models into the Space repo
-          cp -r backend/* hf-space/
+          # Using rsync is more robust than cp
+          rsync -av --exclude='.dvc' ../backend/ ./
           
-          # Navigate into the Space repo
-          cd hf-space
-          
-          # Ensure the README has the correct metadata for a Docker Space
+          # Ensure the README has the correct metadata
           cat > README.md << 'EOF'
 ---
 title: Product Description Generator
@@ -73,7 +74,6 @@ EOF
           # Commit the changes if there are any
           git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
           
-          # Push the changes to the Hugging Face Space
-          # The HF_TOKEN is used for authentication
-          git push https://user:${HF_TOKEN}@huggingface.co/spaces/Khushaal/product-description-generator main
+          # Push the changes (including LFS files) to the Hugging Face Space
+          git push
 
