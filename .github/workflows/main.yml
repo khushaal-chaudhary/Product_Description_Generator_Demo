@@ -59,7 +59,7 @@ jobs:
           context: ./backend
           push: false 
           load: true # Load the image into the Docker daemon
-          tags: ${{ github.repository }}:${{ github.sha }} # Tag the image with repo name and commit SHA
+          tags: ${{ github.repository_owner }}/product-description-generator:${{ github.sha }} # Use a valid, lowercase tag
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
