@@ -48,9 +48,13 @@ jobs:
           username: ${{ secrets.HF_USERNAME }}
           password: ${{ secrets.HF_TOKEN }}
       
-      # New step to help debug the exact tag being used
-      - name: Debug Image Tag
-        run: "echo \"Attempting to push to: registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest\" | tr '[:upper:]' '[:lower:]'"
+      # This new, enhanced step will show us exactly what's being built
+      - name: Debug Deployment Variables
+        run: |
+          echo "Raw HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}"
+          FINAL_TAG=$(echo "registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest" | tr '[:upper:]' '[:lower:]')
+          echo "Final, lowercase tag to be pushed: $FINAL_TAG"
+          echo "FINAL_IMAGE_TAG=$FINAL_TAG" >> $GITHUB_ENV
 
       # Step 8: Build and Push the Docker image to Hugging Face
       - name: Build and Push Docker image
@@ -58,10 +62,8 @@ jobs:
         with:
           context: ./backend
           push: true 
-          # This now forces the entire space ID to lowercase for reliability
-          tags: registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest
-          build-args: |
-            "HF_SPACE_ID_LOWER=$(echo ${{ secrets.HF_SPACE_ID }} | tr '[:upper:]' '[:lower:]')"
+          # This now uses the new lowercase environment variable for reliability
+          tags: ${{ env.FINAL_IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
