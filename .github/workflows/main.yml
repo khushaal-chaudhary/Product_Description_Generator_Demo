@@ -22,6 +22,15 @@ jobs:
       - name: Set up DVC
         uses: iterative/setup-dvc@v1
 
+      # New Step: Cache DVC data for speed and reliability
+      - name: Cache DVC data
+        uses: actions/cache@v4
+        with:
+          path: .dvc/cache
+          key: ${{ runner.os }}-dvc-${{ hashFiles('backend/models.dvc') }}
+          restore-keys: |
+            ${{ runner.os }}-dvc-
+
       - name: Configure DVC with Google Drive Credentials
         env:
           GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
