@@ -11,3 +11,11 @@ env/
 
 # Distribution / build artifacts
 .DS_Store
+
+# DVC Tracked Files
+/backend/models/
+# Ignore all JSON files to protect secrets
+*.json
+
+# Ignore local DVC config
+.dvc/config

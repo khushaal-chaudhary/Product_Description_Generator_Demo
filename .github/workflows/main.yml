@@ -1,0 +1,71 @@
+# This is a basic workflow to demonstrate MLOps CI/CD
+name: CI/CD for Product Generator
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Step 1: Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python for DVC
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Set up DVC
+      - name: Set up DVC
+        uses: iterative/setup-dvc@v1
+
+      # Step 4: Configure DVC with Google Drive credentials from a secret
+      # This step is crucial for the runner to access your models
+      - name: Configure DVC with Google Drive Credentials
+        env:
+          GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
+        run: |
+          dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
+          echo "$GDRIVE_CREDENTIALS_DATA" > gdrive-creds.json
+
+      # Step 5: Pull the models from DVC remote storage
+      - name: Pull DVC data
+        run: dvc pull -r gdrive
+
+      # Step 6: Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 7: Build the Docker image
+      # This step builds the image using our Dockerfile and caches the result.
+      # A successful build confirms that all code, dependencies, and models are working together.
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false # We are only building, not pushing to a registry yet
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'your-image-name'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
