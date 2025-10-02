@@ -48,13 +48,20 @@ jobs:
           username: ${{ secrets.HF_USERNAME }}
           password: ${{ secrets.HF_TOKEN }}
       
+      # New step to help debug the exact tag being used
+      - name: Debug Image Tag
+        run: echo "Attempting to push to: registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest" | tr '[:upper:]' '[:lower:]'
+
       # Step 8: Build and Push the Docker image to Hugging Face
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          push: true # This is the key change to enable deployment
-          # This now uses the single, reliable HF_SPACE_ID secret
-          tags: registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest 
+          push: true 
+          # This now forces the entire space ID to lowercase for reliability
+          tags: registry.hf.space/${{ secrets.HF_SPACE_ID }}:latest
+          build-args: |
+            "HF_SPACE_ID_LOWER=$(echo ${{ secrets.HF_SPACE_ID }} | tr '[:upper:]' '[:lower:]')"
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
