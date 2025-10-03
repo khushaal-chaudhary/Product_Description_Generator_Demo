@@ -1,4 +1,4 @@
-# This workflow uses the definitive, Git-LFS-based deployment method with cleanup
+# This workflow uses the definitive, lightweight, source-code-only deployment method
 name: CI/CD for Product Generator
 
 on:
@@ -7,79 +7,56 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_and_deploy:
+  deploy_to_space:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # This performs a full clone, fixing the "shallow update" error
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up DVC
-        uses: iterative/setup-dvc@v1
-
-      - name: Cache DVC data
-        uses: actions/cache@v4
-        with:
-          path: .dvc/cache
-          key: ${{ runner.os }}-dvc-${{ hashFiles('backend/models.dvc') }}
-          restore-keys: |
-            ${{ runner.os }}-dvc-
-
-      - name: Configure DVC with Google Drive Credentials
-        env:
-          GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
-          DVC_GDRIVE_URL: ${{ secrets.DVC_GDRIVE_URL }}
-        run: |
-          dvc remote add -d gdrive "$DVC_GDRIVE_URL"
-          echo "$GDRIVE_CREDENTIALS_DATA" > gdrive-creds.json
-          dvc remote modify gdrive gdrive_use_service_account true
-          dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
-
-      - name: Pull DVC data
-        uses: nick-invision/retry@v3
-        with:
-          timeout_seconds: 600
-          max_attempts: 3
-          command: dvc pull
-
-      # --- DEPLOYMENT STEP USING GIT PUSH ---
+      
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
+          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }} # In the format: YourUsername/YourSpaceName
         run: |
+          # Configure git for the action
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
+          
+          # Clone the Hugging Face Space repository into a new directory
           git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space
+          
+          # Use rsync to copy only the necessary backend files
+          rsync -av --delete \
+            --exclude='models/' \
+            --exclude='venv/' \
+            --exclude='.venv/' \
+            --exclude='__pycache__/' \
+            --exclude='.dvc/' \
+            ../backend/ ./hf-space/
+          
+          # Navigate into the Space repo
           cd hf-space
           
-          # Use rsync for a robust copy of the entire backend directory's contents
-          # This now includes our new, static README.md file
-          rsync -av --delete --exclude='.dvc/' --exclude='venv/' ../backend/ ./
+          # Ensure the README has the correct metadata
+          cat > README.md << 'EOF'
+---
+title: Product Description Generator
+emoji: ✨
+colorFrom: purple
+colorTo: pink
+sdk: docker
+app_port: 8000
+pinned: false
+---
+EOF
           
-          git lfs install
-          git lfs track "models/**"
+          # Add all files to be committed
+          git add .
           
-          # Add all files to be committed, including the crucial .gitattributes
-          git add . .gitattributes
-          
+          # Commit the changes if there are any
           git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
           
-          # Final git push command with explicit URL and --force flag
+          # Force push the changes to overwrite the remote
           git push --force https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} main
-
-      # --- FINAL CLEANUP STEP ---
-      - name: Cleanup to free up disk space
-        if: always() # This step runs even if previous steps fail
-        run: |
-          echo "Cleaning up large files to free up runner space..."
-          rm -rf backend/models
-          rm -rf .dvc/cache
 
