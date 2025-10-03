@@ -22,7 +22,6 @@ jobs:
       - name: Set up DVC
         uses: iterative/setup-dvc@v1
 
-      # New Step: Cache DVC data for speed and reliability
       - name: Cache DVC data
         uses: actions/cache@v4
         with:
@@ -41,11 +40,10 @@ jobs:
           dvc remote modify gdrive gdrive_use_service_account true
           dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
 
-      # This step now has a retry mechanism for network stability
       - name: Pull DVC data
         uses: nick-invision/retry@v3
         with:
-          timeout_seconds: 300
+          timeout_seconds: 600 # Increased timeout for large downloads
           max_attempts: 3
           command: dvc pull
 
@@ -66,12 +64,9 @@ jobs:
           cd hf-space
           git lfs install
           
-          # Copy only the essential files to the root of the Space repo
-          cp ../backend/main.py .
-          cp ../backend/requirements.txt .
-          cp ../backend/Dockerfile .
-          cp ../backend/.dockerignore .
-          cp -r ../backend/models .
+          # Use rsync for a robust copy of the entire backend directory
+          # This copies all code and the DVC-pulled models
+          rsync -av --delete --exclude='.dvc' --exclude='venv/' ../backend/ ./
           
           # Tell Git LFS to track the large model files
           git lfs track "models/**"
