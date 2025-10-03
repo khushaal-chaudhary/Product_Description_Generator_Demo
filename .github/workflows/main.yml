@@ -64,9 +64,12 @@ jobs:
           cd hf-space
           git lfs install
           
-          # Use rsync for a robust copy of the entire backend directory
-          # This copies all code and the DVC-pulled models
-          rsync -av --delete --exclude='.dvc' --exclude='venv/' ../backend/ ./
+          # Copy only the essential files to the root of the Space repo
+          cp ../backend/main.py .
+          cp ../backend/requirements.txt .
+          cp ../backend/Dockerfile .
+          cp ../backend/.dockerignore .
+          cp -r ../backend/models .
           
           # Tell Git LFS to track the large model files
           git lfs track "models/**"
