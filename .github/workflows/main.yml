@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # This performs a full clone, fixing the "shallow update" error
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -70,7 +72,7 @@ jobs:
           ---' > README.md
           git add . .gitattributes
           git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
-          # Definitive git push command with explicit URL and force flag
+          # Corrected git push command with explicit URL and --force flag
           git push --force https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} main
 
       # --- FINAL CLEANUP STEP ---
