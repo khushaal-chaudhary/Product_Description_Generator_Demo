@@ -70,7 +70,8 @@ jobs:
           ---' > README.md
           git add . .gitattributes
           git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
-          git push
+          # Corrected git push command with explicit URL and authentication
+          git push https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} main
 
       # --- FINAL CLEANUP STEP ---
       - name: Cleanup to free up disk space
@@ -79,4 +80,6 @@ jobs:
           echo "Cleaning up large files to free up runner space..."
           rm -rf backend/models
           rm -rf .dvc/cache
+
+
 
