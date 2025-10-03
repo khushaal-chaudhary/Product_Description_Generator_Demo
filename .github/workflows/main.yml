@@ -1,4 +1,4 @@
-# This workflow uses a robust, Git-based deployment method for HF Spaces
+# This workflow uses the definitive, Git-LFS-based deployment method with cleanup
 name: CI/CD for Product Generator
 
 on:
@@ -43,62 +43,40 @@ jobs:
       - name: Pull DVC data
         uses: nick-invision/retry@v3
         with:
-          timeout_seconds: 600 # Increased timeout for large downloads
+          timeout_seconds: 600
           max_attempts: 3
           command: dvc pull
 
-      # --- DEPLOYMENT STEP USING GIT PUSH (BULLETPROOF VERSION) ---
+      # --- DEPLOYMENT STEP USING GIT PUSH ---
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
         run: |
-          # Configure git for the action
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-          
-          # Clone the Hugging Face Space repository into a new directory
           git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space
-          
-          # Navigate into the Space repo
           cd hf-space
-          
-          # Use rsync for a robust copy of the entire backend directory's contents
-          rsync -av --delete --exclude='.dvc' --exclude='venv/' ../backend/ ./
-          
-          # Debugging: Verify files were copied correctly
-          echo "--- Verifying Copied Files ---"
-          ls -la
-          echo "------------------------------"
-          
-          # Enable Git LFS and track the large model files
+          rsync -av --delete --exclude='.dvc/' --exclude='venv/' ../backend/ ./
           git lfs install
           git lfs track "models/**"
-          
-          # Ensure the README has the correct metadata for a Docker Space
-          cat > README.md << 'EOF'
----
-title: Product Description Generator
-emoji: ✨
-colorFrom: purple
-colorTo: pink
-sdk: docker
-app_port: 8000
-pinned: false
----
-EOF
-          
-          # Add all files to be committed (including the crucial .gitattributes file)
+          echo '---
+          title: Product Description Generator
+          emoji: ✨
+          colorFrom: purple
+          colorTo: pink
+          sdk: docker
+          app_port: 8000
+          ---' > README.md
           git add . .gitattributes
-          
-          # Debugging: Show what Git is about to commit
-          echo "--- Git Status Before Commit ---"
-          git status
-          echo "--------------------------------"
-          
-          # Commit the changes if there are any
           git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
-          
-          # Push the changes (including LFS files) to the Hugging Face Space
           git push
+
+      # --- FINAL CLEANUP STEP ---
+      - name: Cleanup to free up disk space
+        if: always() # This step runs even if previous steps fail
+        run: |
+          echo "Cleaning up large files to free up runner space..."
+          rm -rf backend/models
+          rm -rf .dvc/cache
 
