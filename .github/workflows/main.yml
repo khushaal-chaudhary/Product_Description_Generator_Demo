@@ -41,8 +41,13 @@ jobs:
           dvc remote modify gdrive gdrive_use_service_account true
           dvc remote modify gdrive gdrive_service_account_json_file_path gdrive-creds.json
 
+      # This step now has a retry mechanism for network stability
       - name: Pull DVC data
-        run: dvc pull
+        uses: nick-invision/retry@v3
+        with:
+          timeout_seconds: 300
+          max_attempts: 3
+          command: dvc pull
 
       # --- DEPLOYMENT STEP USING GIT PUSH ---
       - name: Deploy to Hugging Face Space
