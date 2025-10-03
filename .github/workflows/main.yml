@@ -26,19 +26,23 @@ jobs:
           # Clone the Hugging Face Space repository into a new directory
           git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space
           
-          # Use rsync to copy only the necessary backend files from the correct path
+          # Navigate into the Space repo
+          cd hf-space
+
+          # --- DEFINITIVE CLEANUP STEP ---
+          # Remove all existing files from the repo to ensure a clean slate.
+          git rm -rf .
+          
+          # Copy only the necessary backend files from the correct path into the root
           rsync -av --delete \
             --exclude='models/' \
             --exclude='venv/' \
             --exclude='.venv/' \
             --exclude='__pycache__/' \
             --exclude='.dvc/' \
-            backend/ ./hf-space/
+            ../backend/ ./
           
-          # Navigate into the Space repo
-          cd hf-space
-          
-          # Ensure the README has the correct metadata
+          # Ensure the README has the correct metadata, now including 'pinned: false'
           cat > README.md << 'EOF'
 ---
 title: Product Description Generator
@@ -47,15 +51,16 @@ colorFrom: purple
 colorTo: pink
 sdk: docker
 app_port: 8000
+pinned: false
 ---
 EOF
           
           # Add all files to be committed
           git add .
           
-          # Commit the changes if there are any
-          git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
+          # Commit the changes
+          git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
           
-          # Force push the changes to overwrite the remote
+          # Force push the clean state to overwrite the remote
           git push --force https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} main
 
