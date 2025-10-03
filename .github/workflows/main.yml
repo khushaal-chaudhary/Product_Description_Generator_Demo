@@ -1,4 +1,4 @@
-# This workflow uses the robust, Git-based deployment method for HF Spaces
+# This workflow uses a robust, Git-based deployment method for HF Spaces
 name: CI/CD for Product Generator
 
 on:
@@ -47,7 +47,7 @@ jobs:
           max_attempts: 3
           command: dvc pull
 
-      # --- DEPLOYMENT STEP USING GIT PUSH ---
+      # --- DEPLOYMENT STEP USING GIT PUSH (BULLETPROOF VERSION) ---
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -60,18 +60,19 @@ jobs:
           # Clone the Hugging Face Space repository into a new directory
           git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space
           
-          # Navigate into the Space repo and enable Git LFS
+          # Navigate into the Space repo
           cd hf-space
+          
+          # Use rsync for a robust copy of the entire backend directory's contents
+          rsync -av --delete --exclude='.dvc' --exclude='venv/' ../backend/ ./
+          
+          # Debugging: Verify files were copied correctly
+          echo "--- Verifying Copied Files ---"
+          ls -la
+          echo "------------------------------"
+          
+          # Enable Git LFS and track the large model files
           git lfs install
-          
-          # Copy only the essential files to the root of the Space repo
-          cp ../backend/main.py .
-          cp ../backend/requirements.txt .
-          cp ../backend/Dockerfile .
-          cp ../backend/.dockerignore .
-          cp -r ../backend/models .
-          
-          # Tell Git LFS to track the large model files
           git lfs track "models/**"
           
           # Ensure the README has the correct metadata for a Docker Space
@@ -87,8 +88,13 @@ pinned: false
 ---
 EOF
           
-          # Add all files to be committed (including LFS pointers)
-          git add .
+          # Add all files to be committed (including the crucial .gitattributes file)
+          git add . .gitattributes
+          
+          # Debugging: Show what Git is about to commit
+          echo "--- Git Status Before Commit ---"
+          git status
+          echo "--------------------------------"
           
           # Commit the changes if there are any
           git diff --quiet && git diff --staged --quiet || git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
