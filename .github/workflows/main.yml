@@ -42,7 +42,7 @@ jobs:
             --exclude='.dvc/' \
             ../backend/ ./
           
-          # Ensure the README has the correct metadata, now including 'pinned: false'
+          # Ensure the README has the correct metadata
           cat > README.md << 'EOF'
 ---
 title: Product Description Generator
@@ -58,7 +58,7 @@ EOF
           # Add all files to be committed
           git add .
           
-          # Commit the changes
+          # Create a new commit unconditionally
           git commit -m "Deploy from GitHub Actions: ${{ github.sha }}"
           
           # Force push the clean state to overwrite the remote
