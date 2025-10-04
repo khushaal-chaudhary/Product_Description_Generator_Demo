@@ -1,5 +1,8 @@
 # Product Description Generator - MLOps Pipeline
 
+[![CI/CD Pipeline](https://github.com/khushaal-chaudhary/product_generator/actions/workflows/main.yml/badge.svg)](https://github.com/khushaal-chaudhary/product_generator/actions/workflows/main.yml)
+
+
 An end-to-end MLOps project demonstrating CI/CD, model versioning, automated testing, and monitoring for an AI-powered product description generator.
 
 ## Architecture
@@ -116,6 +119,12 @@ product_generator/
 - Push to `main` branch → Full test + deploy
 - Pull requests → Test only
 - Manual dispatch → Available
+
+### Security Scanning
+The pipeline includes automated security checks:
+- **Safety**: Scans for known vulnerabilities in dependencies
+- **Bandit**: Static analysis for security issues in Python code
+- Runs before tests to catch security issues early
 
 ## Monitoring
 
