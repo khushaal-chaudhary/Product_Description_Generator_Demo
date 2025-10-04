@@ -5,6 +5,10 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BlipProcessor, Bli
 import torch
 from PIL import Image
 import io
+import os
+
+# Get token from environment
+hf_token = os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
 # --- AI Model Loading ---
 # This happens once when the server starts up.
@@ -15,10 +19,12 @@ vision_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-ima
 
 # Model 2: Language Model - UPGRADED to a more reliable instruction-tuned model
 lang_model_name = "google/gemma-2b-it"
-lang_tokenizer = AutoTokenizer.from_pretrained(lang_model_name)
+lang_tokenizer = AutoTokenizer.from_pretrained(lang_model_name, 
+                                               token=hf_token)  # Pass the token here)
 lang_model = AutoModelForCausalLM.from_pretrained(
     lang_model_name,
-    torch_dtype=torch.bfloat16 # Recommended for Gemma models
+    torch_dtype=torch.bfloat16, # Recommended for Gemma models
+    token=hf_token  # And here
 )
 # --- End AI Model Loading ---
 
