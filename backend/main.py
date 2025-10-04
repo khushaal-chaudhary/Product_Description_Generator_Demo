@@ -1,12 +1,37 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from datetime import datetime, timezone
+import os
+import time
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import Response
+from pydantic import BaseModel, field_validator
 from transformers import AutoTokenizer, AutoModelForCausalLM, BlipProcessor, BlipForConditionalGeneration
 import torch
 from PIL import Image
 import io
-import os
-from datetime import datetime, timezone
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
+
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    'api_requests_total', 
+    'Total API requests',
+    ['method', 'endpoint', 'status']
+)
+REQUEST_DURATION = Histogram(
+    'api_request_duration_seconds',
+    'Request duration in seconds',
+    ['method', 'endpoint']
+)
+GENERATION_COUNT = Counter(
+    'generation_requests_total',
+    'Total generation requests',
+    ['type']  # 'text' or 'image'
+)
+ACTIVE_REQUESTS = Gauge(
+    'active_requests',
+    'Number of requests currently being processed'
+)
 
 # Debug: Print ALL environment variables related to HF
 print("=" * 50)
@@ -61,8 +86,21 @@ lang_model = AutoModelForCausalLM.from_pretrained(
 class GenerateRequest(BaseModel):
     attributes: str
     keywords: str | None = None
+    
+    @field_validator('attributes')
+    @classmethod
+    def validate_attributes(cls, v):
+        if len(v.strip()) < 5:
+            raise ValueError('Attributes must be at least 5 characters')
+        if len(v.strip()) > 500:
+            raise ValueError('Attributes must be less than 500 characters')
+        return v.strip()
 
-app = FastAPI()
+app = FastAPI(
+    title="Product Description Generator",
+    description="AI-powered product description generator with MLOps pipeline",
+    version="1.0.0"
+)
 
 origins = [
     "http://localhost:5173",
@@ -76,6 +114,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Monitoring middleware
+@app.middleware("http")
+async def monitor_requests(request: Request, call_next):
+    ACTIVE_REQUESTS.inc()
+    start_time = time.time()
+    
+    try:
+        response = await call_next(request)
+        duration = time.time() - start_time
+        
+        REQUEST_DURATION.labels(
+            method=request.method,
+            endpoint=request.url.path
+        ).observe(duration)
+        
+        REQUEST_COUNT.labels(
+            method=request.method,
+            endpoint=request.url.path,
+            status=response.status_code
+        ).inc()
+        
+        return response
+    finally:
+        ACTIVE_REQUESTS.dec()
 
 @app.get("/")
 def read_root():
@@ -92,6 +155,11 @@ def health_check():
         "models_loaded": True,
         "model_metadata": MODEL_METADATA
     }
+
+@app.get("/metrics")
+def metrics():
+    """Prometheus metrics endpoint"""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 @app.post("/generate-description/")
 def generate_description(request: GenerateRequest):

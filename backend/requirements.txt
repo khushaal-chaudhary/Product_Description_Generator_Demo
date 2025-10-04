@@ -16,3 +16,6 @@ dvc[gdrive]
 pytest
 httpx
 pytest-asyncio
+
+#Monitoring
+prometheus-client
