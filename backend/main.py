@@ -6,6 +6,7 @@ import torch
 from PIL import Image
 import io
 import os
+from datetime import datetime, timezone
 
 # Debug: Print ALL environment variables related to HF
 print("=" * 50)
@@ -32,6 +33,15 @@ print(f"Token length: {len(hf_token) if hf_token else 0}")
 
 # --- AI Model Loading ---
 # This happens once when the server starts up.
+
+# Model metadata for tracking
+MODEL_METADATA = {
+    "vision_model": "Salesforce/blip-image-captioning-large",
+    "language_model": "google/gemma-2b-it",
+    "deployed_at": datetime.now(timezone.utc).isoformat(),
+    "dvc_tracked": True,
+    "deployment_method": "runtime_download"
+}
 
 # Model 1: Vision Model for Image Captioning
 vision_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
@@ -69,7 +79,19 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Product Description Generator API!"}
+    return {
+        "message": "Welcome to the Product Description Generator API!",
+        "model_info": MODEL_METADATA
+    }
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "models_loaded": True,
+        "model_metadata": MODEL_METADATA
+    }
 
 @app.post("/generate-description/")
 def generate_description(request: GenerateRequest):

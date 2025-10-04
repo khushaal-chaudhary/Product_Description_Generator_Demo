@@ -38,40 +38,53 @@ jobs:
           cd backend
           pytest tests/ -v --tb=short
       
-      - name: Test summary
-        if: always()
-        run: echo "Tests completed with status ${{ job.status }}"
+      - name: Log DVC Model Version
+        run: |
+          echo "=== DVC Model Tracking Info ==="
+          if [ -f backend/models.dvc ]; then
+            echo "DVC file exists - models are version controlled"
+            cat backend/models.dvc
+          else
+            echo "Warning: models.dvc not found"
+          fi
 
   deploy_to_space:
-    needs: test  # Only runs if tests pass
+    needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'  # Only deploy on main branch pushes
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
      
+      - name: Extract DVC Model Hash
+        id: dvc_hash
+        run: |
+          if [ -f backend/models.dvc ]; then
+            HASH=$(grep "md5:" backend/models.dvc | head -n 1 | awk '{print $2}')
+            echo "hash=${HASH}" >> $GITHUB_OUTPUT
+            echo "DVC Model Hash: ${HASH}"
+          else
+            echo "hash=unknown" >> $GITHUB_OUTPUT
+          fi
+     
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
+          DVC_HASH: ${{ steps.dvc_hash.outputs.hash }}
         run: |
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-         
           rm -rf hf-space-temp
           git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space-temp
           cd hf-space-temp
-          
-          # Remove everything except .git
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-          
-          # Copy necessary files
           cp ../backend/Dockerfile ./
           cp ../backend/main.py ./
           cp ../backend/requirements.txt ./
-          
-          # Create README
+          if [ -f ../backend/models.dvc ]; then cp ../backend/models.dvc ./; fi
+          if [ -f ../backend/MODEL_VERSIONS.md ]; then cp ../backend/MODEL_VERSIONS.md ./; fi
           echo "---" > README.md
           echo "title: Product Description Generator" >> README.md
           echo "emoji: ✨" >> README.md
@@ -84,10 +97,25 @@ jobs:
           echo "" >> README.md
           echo "# Product Description Generator" >> README.md
           echo "" >> README.md
-          echo "AI-powered product description generator." >> README.md
-          
-          # Commit and push
+          echo "AI-powered product description generator showcasing MLOps best practices." >> README.md
+          echo "" >> README.md
+          echo "## Features" >> README.md
+          echo "- Text-based product description generation" >> README.md
+          echo "- Image-based product description generation" >> README.md
+          echo "- RESTful API with FastAPI" >> README.md
+          echo "- Automated CI/CD pipeline" >> README.md
+          echo "- Model version control with DVC" >> README.md
+          echo "" >> README.md
+          echo "## Model Information" >> README.md
+          echo "- **Vision Model**: Salesforce/blip-image-captioning-large" >> README.md
+          echo "- **Language Model**: google/gemma-2b-it" >> README.md
+          echo "- **DVC Hash**: \`${DVC_HASH}\`" >> README.md
+          echo "" >> README.md
+          echo "## API Endpoints" >> README.md
+          echo "- \`GET /\` - Welcome message with model info" >> README.md
+          echo "- \`GET /health\` - Health check with model metadata" >> README.md
+          echo "- \`POST /generate-description/\` - Generate from text attributes" >> README.md
+          echo "- \`POST /generate-from-image/\` - Generate from uploaded image" >> README.md
           git add -A
-          git status
-          git commit -m "Deploy: ${GITHUB_SHA}" || echo "No changes"
+          git commit -m "Deploy: ${GITHUB_SHA:0:7} | DVC: ${DVC_HASH:0:8}" || echo "No changes"
           git push --force origin main
