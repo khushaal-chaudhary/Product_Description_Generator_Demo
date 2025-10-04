@@ -10,6 +10,9 @@ import os
 # Get token from environment
 hf_token = os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
+print(f"DEBUG: Token available: {hf_token is not None}")  # Debug line
+print(f"DEBUG: Token length: {len(hf_token) if hf_token else 0}")  # Debug line
+
 # --- AI Model Loading ---
 # This happens once when the server starts up.
 
