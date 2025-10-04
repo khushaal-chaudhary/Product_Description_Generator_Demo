@@ -25,52 +25,54 @@ jobs:
           git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space-temp
           cd hf-space-temp
           
-          # NUCLEAR OPTION: Remove everything except .git
+          # Remove everything except .git
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
           
-          # Copy ONLY the necessary files from backend/ to root of Space
+          # Copy necessary files from backend/ to root
           cp ../backend/Dockerfile ./
           cp ../backend/main.py ./
           cp ../backend/requirements.txt ./
           
-          # Copy .dockerignore if it exists (optional)
-          [ -f ../backend/.dockerignore ] && cp ../backend/.dockerignore ./ || true
+          # Create README - NOTE THE DIFFERENT EOF DELIMITER
+          cat > README.md <<'EOFREADME'
+          ---
+          title: Product Description Generator
+          emoji: ✨
+          colorFrom: purple
+          colorTo: pink
+          sdk: docker
+          app_port: 8000
+          pinned: false
+          ---
           
-          # Create the README at root level
-          cat > README.md << 'EOF'
----
-title: Product Description Generator
-emoji: ✨
-colorFrom: purple
-colorTo: pink
-sdk: docker
-app_port: 8000
-pinned: false
----
-
-# Product Description Generator
-
-AI-powered product description generator.
-
-**Note:** First startup takes 5-10 minutes as AI models download (~7GB).
-EOF
+          # Product Description Generator
           
-          # Show what we're about to commit
-          echo "=== Files that will be pushed ==="
+          AI-powered product description generator.
+          
+          **Note:** First startup takes 5-10 minutes as AI models download (~7GB).
+          EOFREADME
+          
+          # Show what we have
+          echo "=== Files in repo ==="
           ls -la
           echo ""
           echo "=== README.md content ==="
           cat README.md
+          echo ""
           
-          # Stage all changes
+          # Stage everything
           git add -A
           
-          # Commit everything
-          git commit -m "Clean deployment from GitHub Actions: ${{ github.sha }}" || echo "No changes"
+          # Show what will be committed
+          echo "=== Git status ==="
+          git status
           
-          # Force push to ensure clean state
-          git push --force origin main
-          
-          # Cleanup
-          cd ..
-          rm -rf hf-space-temp
+          # Commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Deploy from GitHub Actions: ${GITHUB_SHA}"
+            echo "=== Pushing to HF Space ==="
+            git push --force origin main
+            echo "=== Push complete ==="
+          fi
