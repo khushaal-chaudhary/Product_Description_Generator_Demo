@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -7,15 +8,35 @@ __pycache__/
 venv/
 .venv/
 env/
-.env/
+.env
 
-# Distribution / build artifacts
+# OS
 .DS_Store
+Thumbs.db
 
-# DVC Tracked Files
+# DVC
 /backend/models/
-# Ignore all JSON files to protect secrets
-*.json
+.dvc/config.local
+.dvc/tmp
+.dvc/cache
 
-# Ignore local DVC config
-.dvc/config
+# Secrets (be specific rather than all JSON)
+*credentials*.json
+*secret*.json
+gdrive-creds.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Security scans
+bandit-report.json
+
+# Logs
+*.log
