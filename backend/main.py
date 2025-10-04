@@ -7,11 +7,28 @@ from PIL import Image
 import io
 import os
 
-# Get token from environment
-hf_token = os.environ.get("HUGGING_FACE_HUB_TOKEN")
+# Debug: Print ALL environment variables related to HF
+print("=" * 50)
+print("ENVIRONMENT VARIABLE DEBUG:")
+print(f"HUGGING_FACE_HUB_TOKEN: {os.environ.get('HUGGING_FACE_HUB_TOKEN', 'NOT SET')}")
+print(f"HF_TOKEN: {os.environ.get('HF_TOKEN', 'NOT SET')}")
+print(f"HF_HOME: {os.environ.get('HF_HOME', 'NOT SET')}")
+print(f"All env vars starting with HF:")
+for key, value in os.environ.items():
+    if key.startswith('HF') or 'HUGGING' in key or 'TOKEN' in key:
+        print(f"  {key}: {value[:10]}... (length: {len(value)})" if value else f"  {key}: EMPTY")
+print("=" * 50)
 
-print(f"DEBUG: Token available: {hf_token is not None}")  # Debug line
-print(f"DEBUG: Token length: {len(hf_token) if hf_token else 0}")  # Debug line
+# Try multiple possible env var names
+hf_token = (
+    os.environ.get("HUGGING_FACE_HUB_TOKEN") or 
+    os.environ.get("HF_TOKEN") or 
+    os.environ.get("HUGGINGFACE_TOKEN") or
+    None
+)
+
+print(f"Final token to use: {'Found' if hf_token else 'NOT FOUND'}")
+print(f"Token length: {len(hf_token) if hf_token else 0}")
 
 # --- AI Model Loading ---
 # This happens once when the server starts up.
