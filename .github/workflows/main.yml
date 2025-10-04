@@ -3,11 +3,50 @@ name: CI/CD for Product Generator
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  deploy_to_space:
+  test:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v --tb=short
+      
+      - name: Test summary
+        if: always()
+        run: echo "Tests completed with status ${{ job.status }}"
+
+  deploy_to_space:
+    needs: test  # Only runs if tests pass
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'  # Only deploy on main branch pushes
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,7 +59,6 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
          
-          # Clone with a fresh directory
           rm -rf hf-space-temp
           git clone https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} hf-space-temp
           cd hf-space-temp
@@ -28,51 +66,28 @@ jobs:
           # Remove everything except .git
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
           
-          # Copy necessary files from backend/ to root
+          # Copy necessary files
           cp ../backend/Dockerfile ./
           cp ../backend/main.py ./
           cp ../backend/requirements.txt ./
           
-          # Create README - NOTE THE DIFFERENT EOF DELIMITER
-          cat > README.md <<'EOFREADME'
-          ---
-          title: Product Description Generator
-          emoji: ✨
-          colorFrom: purple
-          colorTo: pink
-          sdk: docker
-          app_port: 8000
-          pinned: false
-          ---
+          # Create README
+          echo "---" > README.md
+          echo "title: Product Description Generator" >> README.md
+          echo "emoji: ✨" >> README.md
+          echo "colorFrom: purple" >> README.md
+          echo "colorTo: pink" >> README.md
+          echo "sdk: docker" >> README.md
+          echo "app_port: 8000" >> README.md
+          echo "pinned: false" >> README.md
+          echo "---" >> README.md
+          echo "" >> README.md
+          echo "# Product Description Generator" >> README.md
+          echo "" >> README.md
+          echo "AI-powered product description generator." >> README.md
           
-          # Product Description Generator
-          
-          AI-powered product description generator.
-          
-          **Note:** First startup takes 5-10 minutes as AI models download (~7GB).
-          EOFREADME
-          
-          # Show what we have
-          echo "=== Files in repo ==="
-          ls -la
-          echo ""
-          echo "=== README.md content ==="
-          cat README.md
-          echo ""
-          
-          # Stage everything
+          # Commit and push
           git add -A
-          
-          # Show what will be committed
-          echo "=== Git status ==="
           git status
-          
-          # Commit
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Deploy from GitHub Actions: ${GITHUB_SHA}"
-            echo "=== Pushing to HF Space ==="
-            git push --force origin main
-            echo "=== Push complete ==="
-          fi
+          git commit -m "Deploy: ${GITHUB_SHA}" || echo "No changes"
+          git push --force origin main

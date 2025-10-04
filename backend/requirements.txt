@@ -2,10 +2,17 @@
 fastapi
 uvicorn[standard]
 python-multipart
+
 #AI & ML Libraries
 transformers
 torch
 Pillow
 accelerate
+
 #DVC for Google Drive
 dvc[gdrive]
+
+#Testing
+pytest
+httpx
+pytest-asyncio
